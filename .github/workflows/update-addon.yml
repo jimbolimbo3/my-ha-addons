@@ -1,0 +1,33 @@
+name: Update Add-on Version
+
+on:
+  repository_dispatch:
+    types: [release-hamh] # Deve corrispondere a 'event-type'
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Get Version from Payload
+        id: payload
+        run: |
+          VERSION_RAW=$(echo "${{ github.event.client_payload.version }}" | cut -d 'v' -f 2)
+          echo "version=$VERSION_RAW" >> "$GITHUB_OUTPUT"
+
+      - name: Update config.json
+        run: |
+          # Usa 'jq' per aggiornare il JSON in modo idempotente
+          jq '.version = "${{ steps.payload.outputs.version }}"' \
+            home-assistant-matter-hub/config.json > config.tmp && \
+            mv config.tmp home-assistant-matter-hub/config.json
+
+      - name: Commit changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add home-assistant-matter-hub/config.json
+          git commit -m "chore(matter-hub): bump version to ${{ steps.payload.outputs.version }}" || echo "No changes to commit"
+          git push
